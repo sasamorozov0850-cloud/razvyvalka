@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#f0ece2" />
+<title>Пузырьковая плёнка</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f0ece2;
+    --paper2:#e6e0d2;
+    --bubble:#fbf8f0;
+    --bubble-edge:#c9bfa8;
+    --bubble-pop:#d8cfb8;
+    --ink:#3a3226;
+    --ink-soft:#6b6152;
+    --line:#d0c6ae;
+    --shadow:rgba(58,50,38,.14);
+    --ring:rgba(200,190,160,.7);
+    --accent:#a26a3c;
+    --green:#7a8b5c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;
+    -webkit-touch-callout:none;}
+  html,body{margin:0;padding:0;height:100%;background:var(--paper);color:var(--ink);
+    font-family:'Nunito',-apple-system,sans-serif;overscroll-behavior:none;overflow:hidden;}
+  body{
+    display:flex;flex-direction:column;
+    padding:env(safe-area-inset-top) 6px env(safe-area-inset-bottom);
+    background:var(--paper);
+    height:100vh;height:100dvh;touch-action:manipulation;position:relative;
+  }
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.6;
+    background-image:
+      radial-gradient(rgba(58,50,38,.04) 1px, transparent 1px),
+      radial-gradient(rgba(58,50,38,.03) 1px, transparent 1px);
+    background-size:13px 13px, 21px 21px;
+    background-position:0 0, 6px 9px;
+  }
+
+  #desktop-block{display:none;position:fixed;inset:0;background:var(--paper);
+    align-items:center;justify-content:center;text-align:center;padding:32px;z-index:999;
+    flex-direction:column;gap:18px;}
+  #desktop-block h1{font-family:'Caveat',cursive;font-size:34px;margin:0;color:#a88b5c;font-weight:700;}
+  #desktop-block p{color:var(--ink-soft);font-size:15px;line-height:1.6;margin:0;max-width:300px;}
+
+  /* ===== Шапка ===== */
+  header{
+    width:100%;display:flex;align-items:center;justify-content:space-between;
+    padding:6px 10px 4px;position:relative;z-index:5;flex:0 0 auto;gap:10px;
+  }
+  header .title{
+    font-family:'Caveat',cursive;font-size:23px;color:var(--ink);
+    font-weight:700;transform:rotate(-1.5deg);letter-spacing:.5px;line-height:1;
+    flex:0 1 auto;cursor:pointer;transition:opacity .2s;
+  }
+  header .title:active{opacity:.6;}
+  header .meta{
+    display:flex;gap:14px;align-items:center;
+    font-size:12px;color:var(--ink-soft);font-weight:700;letter-spacing:.5px;
+    flex:0 0 auto;
+  }
+  header .meta .stat{
+    display:flex;flex-direction:column;align-items:flex-end;line-height:1;
+    position:relative;
+  }
+  header .meta .stat .lbl{
+    font-size:9px;color:var(--ink-soft);text-transform:uppercase;
+    letter-spacing:1px;font-weight:700;opacity:.8;
+  }
+  header .meta .stat b{
+    color:var(--ink);font-weight:800;font-size:16px;margin-top:2px;
+  }
+  header .meta .stat b.clickable{cursor:pointer;}
+  header .meta .stat b.clickable:active{opacity:.6;}
+  /* индикатор активности */
+  .pulse{
+    position:absolute;top:-2px;right:-6px;width:6px;height:6px;border-radius:50%;
+    background:var(--accent);opacity:0;transition:opacity .2s;
+  }
+  .pulse.on{opacity:1;animation:pulseBlink .5s infinite;}
+  @keyframes pulseBlink{
+    0%,100%{transform:scale(1);opacity:1;}
+    50%{transform:scale(1.4);opacity:.4;}
+  }
+  #sound-toggle{
+    background:none;border:none;color:var(--ink-soft);
+    font-size:16px;cursor:pointer;padding:4px 6px;line-height:1;
+    opacity:.75;transition:opacity .15s;
+  }
+  #sound-toggle:active{opacity:1;}
+  #sound-toggle.off{opacity:.35;}
+
+  /* ===== Счётчик в секунду ===== */
+  .rate{
+    position:fixed;top:56px;left:50%;transform:translateX(-50%) translateY(-6px);
+    background:rgba(255,253,247,.94);border:1.5px solid var(--line);
+    padding:4px 12px;border-radius:20px;
+    font-family:'Nunito',sans-serif;font-size:11px;font-weight:700;
+    color:var(--accent);letter-spacing:.5px;
+    opacity:0;pointer-events:none;transition:opacity .3s, transform .3s;
+    z-index:8;box-shadow:0 3px 10px rgba(58,50,38,.10);
+  }
+  .rate.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  /* ===== Плёнка ===== */
+  .film-wrap{
+    flex:1 1 auto;width:100%;position:relative;z-index:2;
+    display:flex;align-items:stretch;justify-content:stretch;
+    min-height:0;padding:4px 4px 6px;
+  }
+  .film{
+    flex:1;background:var(--paper2);
+    border-radius:14px;padding:8px;
+    box-shadow:
+      0 10px 30px rgba(58,50,38,.10),
+      inset 0 1px 0 rgba(255,255,255,.6);
+    position:relative;display:flex;flex-direction:column;overflow:hidden;
+    touch-action:none;
+  }
+  .film::before{
+    content:'';position:absolute;inset:4px;border-radius:10px;
+    background:
+      repeating-linear-gradient(0deg, rgba(58,50,38,.035) 0 1px, transparent 1px 7px),
+      repeating-linear-gradient(90deg, rgba(58,50,38,.02) 0 1px, transparent 1px 9px);
+    pointer-events:none;z-index:1;
+  }
+  .film::after{
+    content:'';position:absolute;inset:0;border-radius:14px;pointer-events:none;z-index:1;
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(58,50,38,.06) 1px, transparent 1.5px),
+      radial-gradient(circle at 78% 42%, rgba(58,50,38,.05) 1px, transparent 1.5px),
+      radial-gradient(circle at 44% 76%, rgba(58,50,38,.05) 1px, transparent 1.5px),
+      radial-gradient(circle at 88% 88%, rgba(58,50,38,.06) 1px, transparent 1.5px),
+      radial-gradient(circle at 22% 64%, rgba(58,50,38,.04) 1px, transparent 1.5px);
+    opacity:.6;
+  }
+  .grid{
+    display:grid;gap:4px;position:relative;z-index:2;
+    width:100%;flex:1;min-height:0;
+  }
+  .grid.breathe{animation:breathe 6s ease-in-out infinite;}
+  @keyframes breathe{
+    0%,100%{transform:translateY(0) scale(1);}
+    50%{transform:translateY(-0.5px) scale(1.001);}
+  }
+  .bubble{
+    width:100%;height:100%;min-width:0;min-height:0;
+    aspect-ratio:1/1;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #ffffff 0%, var(--bubble) 45%, var(--bubble-edge) 100%);
+    box-shadow:
+      inset 0 -2px 3px rgba(58,50,38,.15),
+      inset 0 2px 2px rgba(255,255,255,.9),
+      0 1px 1px rgba(58,50,38,.08);
+    cursor:pointer;position:relative;
+    transition:transform .12s ease, box-shadow .15s ease, background .15s ease;
+    will-change:transform;
+    align-self:center;
+    justify-self:center;
+    max-width:100%;
+    max-height:100%;
+  }
+  .bubble:active{transform:scale(.94);}
+  .bubble.popped{
+    background:radial-gradient(circle at 35% 30%, var(--bubble-pop) 0%, #c4bba1 100%);
+    box-shadow:
+      inset 0 2px 4px rgba(58,50,38,.25),
+      0 0 0 1px rgba(58,50,38,.06);
+    transform:scale(.86);
+    cursor:default;
+    pointer-events:none;
+    animation:popOut .35s ease-out;
+  }
+  @keyframes popOut{
+    0%{transform:scale(1.06);}
+    45%{transform:scale(.82);}
+    100%{transform:scale(.86);}
+  }
+  .spark{
+    position:absolute;width:5px;height:5px;border-radius:50%;
+    background:rgba(200,190,160,.85);
+    pointer-events:none;z-index:5;
+    animation:spark .45s ease-out forwards;
+  }
+  @keyframes spark{
+    0%{transform:translate(0,0) scale(1);opacity:.9;}
+    100%{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0;}
+  }
+  .ring{
+    position:absolute;border-radius:50%;
+    border:1.5px solid var(--ring);
+    pointer-events:none;z-index:4;
+    animation:ringOut .5s ease-out forwards;
+  }
+  @keyframes ringOut{
+    0%{transform:scale(.6);opacity:.85;}
+    100%{transform:scale(1.9);opacity:0;}
+  }
+
+  /* ===== Полоса прогресса ===== */
+  .progress{
+    position:absolute;left:8px;right:8px;bottom:6px;height:3px;
+    background:rgba(58,50,38,.08);border-radius:3px;overflow:hidden;z-index:6;
+    pointer-events:none;
+  }
+  .progress .bar{
+    height:100%;width:0%;border-radius:3px;
+    background:linear-gradient(90deg,var(--bubble-edge),var(--accent));
+    transition:width .3s ease;
+  }
+
+  /* ===== Кнопки ===== */
+  .float-btn{
+    position:absolute;bottom:16px;width:48px;height:48px;border-radius:50%;
+    background:rgba(255,253,247,.94);border:1.5px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;z-index:10;
+    box-shadow:0 4px 12px rgba(58,50,38,.18);
+    transition:transform .1s, box-shadow .1s, background .2s;
+    -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  }
+  .float-btn:active{transform:scale(.92);}
+  .float-btn.armed{background:rgba(216,140,110,.95);border-color:#a26a3c;color:#fff;}
+  .float-btn svg{width:22px;height:22px;stroke:var(--ink);stroke-width:1.8;fill:none;
+    stroke-linecap:round;stroke-linejoin:round;transition:stroke .2s;}
+  .float-btn.armed svg{stroke:#fff;}
+  .float-btn .count-badge{
+    position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;padding:0 5px;
+    background:var(--accent);color:#fff;border-radius:10px;
+    font-family:'Nunito',sans-serif;font-size:11px;font-weight:800;
+    display:flex;align-items:center;justify-content:center;
+    opacity:0;transform:scale(.7);transition:opacity .2s, transform .2s;
+    pointer-events:none;
+  }
+  .float-btn.armed .count-badge{opacity:1;transform:scale(1);}
+  #newfilm{right:14px;}
+  #popall{left:14px;}
+  #clearcur{
+    left:70px;
+    width:40px;height:40px;bottom:20px;
+  }
+  #clearcur svg{width:18px;height:18px;}
+
+  /* ===== Меню ===== */
+  #menu{
+    position:fixed;inset:0;z-index:700;background:rgba(30,25,18,.75);
+    display:none;align-items:center;justify-content:center;padding:20px;
+    -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  }
+  #menu.show{display:flex;animation:fade .2s;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .menu-panel{
+    background:#fffdf7;border:1.5px solid var(--line);border-radius:6px;
+    padding:18px;max-width:340px;width:100%;
+    box-shadow:4px 4px 0 var(--shadow);
+    max-height:80vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  }
+  .menu-panel h2{
+    font-family:'Caveat',cursive;font-size:26px;margin:0 0 10px;color:var(--ink);
+    transform:rotate(-1deg);
+  }
+  .menu-panel h3{
+    font-family:'Caveat',cursive;font-size:19px;margin:14px 0 6px;color:var(--ink-soft);
+    font-weight:700;
+  }
+  .menu-panel .row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:9px 0;border-bottom:1px dashed var(--line);gap:10px;
+  }
+  .menu-panel .row:last-child{border-bottom:none;}
+  .menu-panel .row .lbl{font-size:13px;color:var(--ink);font-weight:600;}
+  .menu-panel .row .lbl .sub{display:block;font-size:11px;color:var(--ink-soft);font-style:italic;font-weight:400;}
+  .menu-panel .row .val{font-size:13px;color:var(--accent);font-weight:700;}
+  .menu-panel .btn{
+    width:100%;padding:12px;background:var(--paper2);border:1.5px solid var(--line);
+    border-radius:4px;font-family:'Caveat',cursive;font-size:19px;color:var(--ink);
+    cursor:pointer;box-shadow:2px 2px 0 var(--shadow);margin-top:10px;
+  }
+  .menu-panel .btn:active{transform:translate(1px,1px);box-shadow:none;}
+  .menu-panel .btn.danger{color:var(--accent);}
+  .ach-list{font-size:12px;color:var(--ink-soft);}
+  .ach-list .item{
+    display:flex;justify-content:space-between;padding:6px 0;
+    border-bottom:1px dashed var(--line);
+  }
+  .ach-list .item.done{color:var(--green);font-weight:700;}
+  .ach-list .item:last-child{border-bottom:none;}
+
+  /* ===== Тост ===== */
+  .toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%) translateY(14px) rotate(-1deg);
+    background:#fffdf7;border:1.5px solid var(--line);color:var(--ink);
+    padding:8px 18px;border-radius:4px;font-family:'Caveat',cursive;font-size:20px;
+    font-weight:700;opacity:0;pointer-events:none;transition:all .25s ease;z-index:500;
+    box-shadow:3px 3px 0 var(--shadow);max-width:90vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0) rotate(-1deg);}
+
+  /* Достижение — сверху */
+  .ach-toast{
+    position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-10px);
+    background:#fffdf7;border:1.5px solid var(--green);color:var(--green);
+    padding:6px 14px;border-radius:4px;font-family:'Caveat',cursive;font-size:17px;
+    font-weight:700;opacity:0;pointer-events:none;transition:all .3s ease;z-index:560;
+    box-shadow:2px 2px 0 var(--shadow);text-align:center;
+  }
+  .ach-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<div id="desktop-block">
+  <h1>Только с телефона</h1>
+  <p>Эта штука живёт в кармане. Открой на смартфоне — на большом экране не то.</p>
+</div>
+
+<header>
+  <div class="title" id="title">Пузырьковая плёнка</div>
+  <div class="meta">
+    <div class="stat">
+      <span class="lbl">пл.</span><b id="count">0</b>
+      <span class="pulse" id="pulse"></span>
+    </div>
+    <div class="stat"><span class="lbl">всего</span><b id="total" class="clickable" title="долгий тап — сброс">0</b></div>
+    <button id="sound-toggle" aria-label="звук">♪</button>
+  </div>
+</header>
+
+<div class="rate" id="rate">0 пуз/с</div>
+
+<div class="film-wrap">
+  <div class="film" id="film">
+    <div class="grid" id="grid"></div>
+    <div class="progress"><div class="bar" id="progbar"></div></div>
+    <div class="float-btn" id="clearcur" title="сбросить текущую">
+      <svg viewBox="0 0 24 24"><path d="M5 5l14 14"/><path d="M19 5L5 19"/></svg>
+    </div>
+    <div class="float-btn" id="popall" title="лопнуть все (долгий тап)">
+      <svg viewBox="0 0 24 24"><path d="M4 12l4 4 12-12"/><path d="M4 20l4-4"/></svg>
+      <span class="count-badge" id="popallBadge">0</span>
+    </div>
+    <div class="float-btn" id="newfilm" title="новая плёнка">
+      <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 108-8"/><path d="M4 4v6h6"/></svg>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="ach-toast" id="ach-toast"></div>
+
+<div id="menu">
+  <div class="menu-panel">
+    <h2>настройки</h2>
+    <div class="row"><span class="lbl">звук<span class="sub">переключатель в шапке</span></span><span class="val" id="m-sound">вкл</span></div>
+    <div class="row"><span class="lbl">всего лопнуто</span><span class="val" id="m-total">0</span></div>
+    <div class="row"><span class="lbl">достижений<span class="sub" id="m-ach-sub">0 из 8</span></span><span class="val" id="m-ach">0</span></div>
+
+    <h3>достижения</h3>
+    <div class="ach-list" id="m-ach-list"></div>
+
+    <button class="btn" id="m-close">закрыть</button>
+    <button class="btn danger" id="m-reset-all">сбросить всё</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+  const isCoarse = window.matchMedia('(pointer: coarse)').matches;
+  const isMobileUA = /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(navigator.userAgent);
+  if (!((isTouch || isCoarse) && isMobileUA)){
+    document.getElementById('desktop-block').style.display='flex';
+    document.body.style.overflow='hidden';
+    return;
+  }
+
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg){ try{ tg.ready(); tg.expand();
+    if(tg.setHeaderColor)tg.setHeaderColor('#f0ece2');
+    if(tg.setBackgroundColor)tg.setBackgroundColor('#f0ece2');
+    if(tg.enableClosingConfirmation)tg.enableClosingConfirmation(); }catch(e){} }
+
+  /* ============ Звук ============ */
+  const Pop = (function(){
+    let ctx=null, master=null;
+    let enabled = localStorage.getItem('pop_sound') !== 'off';
+    let lastClickAt = 0;
+    function init(){
+      if (ctx) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = baseGain();
+      const lp = ctx.createBiquadFilter();
+      lp.type='lowpass'; lp.frequency.value = 5200;
+      master.connect(lp); lp.connect(ctx.destination);
+    }
+    function resume(){ if(!ctx) init(); if(ctx && ctx.state==='suspended') ctx.resume(); }
+    function baseGain(){
+      const h = new Date().getHours();
+      const isNight = h >= 23 || h < 6;
+      return isNight ? 0.21 : 0.35;
+    }
+    function applyGain(){
+      if (master) master.gain.value = baseGain();
+    }
+    function noiseBuf(sec){
+      const n = Math.floor(ctx.sampleRate * sec);
+      const b = ctx.createBuffer(1, n, ctx.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i=0;i<n;i++){
+        const t = i/n;
+        d[i] = (Math.random()*2-1) * (1 - t) * (1 - t);
+      }
+      return b;
+    }
+    return {
+      unlock(){ resume(); },
+      isEnabled(){ return enabled; },
+      toggle(){ enabled = !enabled; localStorage.setItem('pop_sound', enabled?'on':'off');
+        if (enabled){ resume(); } return enabled; },
+      click(pitch, opts){
+        resume(); if(!enabled||!ctx) return;
+        const now = performance.now();
+        if (!(opts && opts.force) && now - lastClickAt < 45) return;
+        lastClickAt = now;
+
+        applyGain();
+        const t0 = ctx.currentTime;
+        const p = pitch || (0.9 + Math.random()*0.4);
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuf(0.06);
+        const bp = ctx.createBiquadFilter();
+        bp.type='bandpass'; bp.frequency.value = 1800 * p; bp.Q.value = 1.6;
+        const g1 = ctx.createGain();
+        g1.gain.setValueAtTime(0.0001, t0);
+        g1.gain.linearRampToValueAtTime(0.20, t0+0.004);
+        g1.gain.exponentialRampToValueAtTime(0.0001, t0+0.07);
+        src.connect(bp); bp.connect(g1); g1.connect(master);
+        src.start(t0); src.stop(t0+0.09);
+        const o = ctx.createOscillator();
+        o.type='triangle';
+        o.frequency.setValueAtTime(1400 * p, t0);
+        o.frequency.exponentialRampToValueAtTime(900 * p, t0+0.04);
+        const g2 = ctx.createGain();
+        g2.gain.setValueAtTime(0.0001, t0);
+        g2.gain.linearRampToValueAtTime(0.06, t0+0.002);
+        g2.gain.exponentialRampToValueAtTime(0.0001, t0+0.05);
+        o.connect(g2); g2.connect(master);
+        o.start(t0); o.stop(t0+0.06);
+      },
+      // нарастающий шелест для "лопнуть всё" — один шумовой поток с АМ
+      cascade(count){
+        resume(); if(!enabled||!ctx) return;
+        const dur = Math.min(1.6, Math.max(0.4, count * 0.02));
+        const t0 = ctx.currentTime;
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuf(dur);
+        const bp = ctx.createBiquadFilter();
+        bp.type='bandpass'; bp.frequency.setValueAtTime(1400, t0);
+        bp.frequency.linearRampToValueAtTime(2600, t0 + dur);
+        bp.Q.value = 1.8;
+        // АМ-модуляция для "волны лопаний"
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 16;
+        const lfoG = ctx.createGain();
+        lfoG.gain.value = 0.5;
+        const g = ctx.createGain();
+        g.gain.value = 0.12;
+        lfo.connect(lfoG); lfoG.connect(g.gain);
+        const out = ctx.createGain();
+        out.gain.setValueAtTime(0.0001, t0);
+        out.gain.linearRampToValueAtTime(1, t0+0.08);
+        out.gain.linearRampToValueAtTime(1, t0+dur-0.2);
+        out.gain.linearRampToValueAtTime(0.0001, t0+dur);
+        src.connect(bp); bp.connect(g); g.connect(out); out.connect(master);
+        src.start(t0); src.stop(t0+dur+0.05);
+        lfo.start(t0); lfo.stop(t0+dur+0.05);
+      }
+    };
+  })();
+
+  const unlockOnce = ()=>{ Pop.unlock();
+    document.removeEventListener('touchstart',unlockOnce);
+    document.removeEventListener('click',unlockOnce); };
+  document.addEventListener('touchstart',unlockOnce,{passive:true});
+  document.addEventListener('click',unlockOnce);
+
+  function buzz(ms){ if(navigator.vibrate) try{navigator.vibrate(ms);}catch(e){} }
+
+  /* ============ Достижения ============ */
+  const ACHS = [
+    {id:'first',    name:'первый пузырёк',       test:(s)=>s.total>=1},
+    {id:'p100',     name:'100 пузырьков',         test:(s)=>s.total>=100},
+    {id:'p500',     name:'500 пузырьков',         test:(s)=>s.total>=500},
+    {id:'p1000',    name:'1000 пузырьков',        test:(s)=>s.total>=1000},
+    {id:'p5000',    name:'5000 пузырьков',        test:(s)=>s.total>=5000},
+    {id:'allfilm',  name:'вся плёнка за раз',     test:(s,ctx)=>ctx.lastFilmComplete===true},
+    {id:'allfast',  name:'вся плёнка за 30 сек',  test:(s,ctx)=>ctx.lastFilmFast===true},
+    {id:'multi',    name:'два пальца',            test:(s)=>s.multiTouch===true}
+  ];
+
+  /* ============ Состояние ============ */
+  let totalPopped = +(localStorage.getItem('pop_total') || 0);
+  let currentPopped = 0;
+  let totalInFilm = 0;
+  let filmStartTime = Date.now();
+  let achievements = JSON.parse(localStorage.getItem('pop_achs') || '[]');
+  let gridCols = 0, gridRows = 0;
+  let ctxState = {lastFilmComplete:false, lastFilmFast:false, multiTouch:false};
+
+  const $ = id => document.getElementById(id);
+  const gridEl = $('grid');
+  const filmEl = $('film');
+  const countEl = $('count');
+  const totalEl = $('total');
+  const toastEl = $('toast');
+  const achToastEl = $('ach-toast');
+  const soundBtn = $('sound-toggle');
+  const pulseEl = $('pulse');
+  const progBar = $('progbar');
+  const rateEl = $('rate');
+  const popallBadge = $('popallBadge');
+  const menuEl = $('menu');
+
+  const saveTotal = ()=> localStorage.setItem('pop_total', totalPopped);
+  const saveAchs = ()=> localStorage.setItem('pop_achs', JSON.stringify(achievements));
+
+  /* ============ Сетка ============ */
+  function computeGrid(){
+    const fw = filmEl.clientWidth  - 16;
+    const fh = filmEl.clientHeight - 16 - 8; // минус полоса прогресса
+    const target = 44;
+    let cols = Math.round(fw / (target + 4));
+    let rows = Math.round(fh / (target + 4));
+    cols = Math.max(5, Math.min(14, cols));
+    rows = Math.max(7, Math.min(22, rows));
+    return {cols, rows};
+  }
+
+  function buildFilm(preserveSet){
+    const {cols, rows} = computeGrid();
+    gridCols = cols; gridRows = rows;
+    totalInFilm = cols * rows;
+    filmStartTime = Date.now();
+
+    gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    const rowParts = [];
+    for (let r=0;r<rows;r++){
+      rowParts.push(r % 3 === 1 ? '0.96fr' : (r % 3 === 2 ? '1.04fr' : '1fr'));
+    }
+    gridEl.style.gridTemplateRows = rowParts.join(' ');
+
+    gridEl.innerHTML = '';
+    currentPopped = 0;
+    countEl.textContent = '0';
+    updateProgress();
+    const frag = document.createDocumentFragment();
+    for (let r=0;r<rows;r++){
+      for (let c=0;c<cols;c++){
+        const b = document.createElement('div');
+        b.className = 'bubble';
+        b.dataset.x = c;
+        b.dataset.y = r;
+        if (preserveSet && preserveSet.has(c+','+r)){
+          b.classList.add('popped');
+          currentPopped++;
+        }
+        frag.appendChild(b);
+      }
+    }
+    gridEl.appendChild(frag);
+    countEl.textContent = currentPopped;
+    updateProgress();
+    updatePopallBadge();
+  }
+
+  function updateProgress(){
+    const pct = totalInFilm ? (currentPopped / totalInFilm * 100) : 0;
+    progBar.style.width = pct + '%';
+  }
+
+  function updatePopallBadge(){
+    const remaining = totalInFilm - currentPopped;
+    popallBadge.textContent = remaining > 99 ? '99+' : remaining;
+  }
+
+  /* ============ Лопанье ============ */
+  function popBubble(b, opts){
+    if (!b || b.classList.contains('popped')) return false;
+    b.classList.add('popped');
+
+    const rect = b.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    spawnSparks(cx, cy);
+    spawnRing(rect);
+
+    currentPopped++;
+    totalPopped++;
+    countEl.textContent = currentPopped;
+    totalEl.textContent = totalPopped;
+    saveTotal();
+    updateProgress();
+    updatePopallBadge();
+
+    // питч: первые 10 лопаний чуть ниже
+    const pitchBase = totalPopped < 10 ? 0.75 : 0.9;
+    if (!opts || !opts.silent){
+      Pop.click(pitchBase + Math.random()*0.4);
+      const size = rect.width;
+      const strength = size > 52 ? 10 : (size > 40 ? 7 : 5);
+      buzz(strength);
+    }
+
+    // индикатор
+    pulseActivity();
+
+    // проверка: вся плёнка?
+    if (currentPopped >= totalInFilm){
+      const dur = Date.now() - filmStartTime;
+      if (dur < 30000) ctxState.lastFilmFast = true;
+      ctxState.lastFilmComplete = true;
+      checkAch();
+    }
+    return true;
+  }
+
+  function spawnSparks(cx, cy){
+    const n = 3 + Math.floor(Math.random()*3);
+    for (let i=0;i<n;i++){
+      const s = document.createElement('div');
+      s.className = 'spark';
+      s.style.left = cx + 'px';
+      s.style.top = cy + 'px';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 12 + Math.random()*20;
+      s.style.setProperty('--dx', Math.cos(angle)*dist + 'px');
+      s.style.setProperty('--dy', Math.sin(angle)*dist + 'px');
+      document.body.appendChild(s);
+      setTimeout(()=>s.remove(), 500);
+    }
+  }
+
+  function spawnRing(rect){
+    const ring = document.createElement('div');
+    ring.className = 'ring';
+    const size = rect.width;
+    ring.style.left = rect.left + 'px';
+    ring.style.top = rect.top + 'px';
+    ring.style.width = size + 'px';
+    ring.style.height = size + 'px';
+    document.body.appendChild(ring);
+    setTimeout(()=>ring.remove(), 550);
+  }
+
+  /* ============ Активность ============ */
+  let activityTimer = null;
+  function pulseActivity(){
+    pulseEl.classList.add('on');
+    clearTimeout(activityTimer);
+    activityTimer = setTimeout(()=>pulseEl.classList.remove('on'), 300);
+  }
+
+  /* ============ Пульс "пуз/с" ============ */
+  let rateWindow = [];
+  let rateTimer = null;
+  function trackRate(){
+    const now = Date.now();
+    rateWindow.push(now);
+    rateWindow = rateWindow.filter(t=>now - t < 1000);
+    if (rateWindow.length >= 4){
+      rateEl.textContent = rateWindow.length + ' пуз/с';
+      rateEl.classList.add('show');
+      clearTimeout(rateTimer);
+      rateTimer = setTimeout(()=>rateEl.classList.remove('show'), 1200);
+    }
+  }
+
+  /* ============ Взаимодействие: мультитач ============ */
+  // отслеживаем все активные пальцы
+  const activePointers = new Map(); // pointerId -> {current: bubble}
+
+  function handleEnter(pointerId, el){
+    const b = el && el.closest && el.closest('.bubble');
+    if (!b) return;
+    if (activePointers.has(pointerId) && activePointers.get(pointerId).current === b) return;
+    if (activePointers.size > 1) ctxState.multiTouch = true;
+    popBubble(b);
+    if (activePointers.size > 1) checkAch();
+    activePointers.set(pointerId, {current: b});
+    trackRate();
+  }
+
+  function elAtPoint(x, y){
+    // отключаем плавающие кнопки на время протяжки, чтобы не мешали
+    const btns = [ $('popall'), $('newfilm'), $('clearcur') ];
+    btns.forEach(b=>{ if (b) b.style.pointerEvents = 'none'; });
+    const el = document.elementFromPoint(x, y);
+    btns.forEach(b=>{ if (b) b.style.pointerEvents = ''; });
+    return el;
+  }
+
+  // touch
+  function onTouchStart(e){
+    for (const t of e.changedTouches){
+      handleEnter(t.identifier, e.target);
+    }
+  }
+  function onTouchMove(e){
+    for (const t of e.changedTouches){
+      const el = elAtPoint(t.clientX, t.clientY);
+      if (!el) continue;
+      const b = el.closest && el.closest('.bubble');
+      if (!b) continue;
+      const cur = activePointers.get(t.identifier);
+      if (cur && cur.current === b) continue;
+      popBubble(b);
+      activePointers.set(t.identifier, {current: b});
+      trackRate();
+    }
+  }
+  function onTouchEnd(e){
+    for (const t of e.changedTouches){
+      activePointers.delete(t.identifier);
+    }
+  }
+
+  gridEl.addEventListener('touchstart', onTouchStart, {passive:true});
+  gridEl.addEventListener('touchmove', onTouchMove, {passive:true});
+  gridEl.addEventListener('touchend', onTouchEnd);
+  gridEl.addEventListener('touchcancel', onTouchEnd);
+
+  // мышь (для отладки на десктопе, но работает и в браузере с тач-эмуляцией)
+  gridEl.addEventListener('mousedown', (e)=>{
+    handleEnter('mouse', e.target);
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if (!activePointers.has('mouse')) return;
+    const el = elAtPoint(e.clientX, e.clientY);
+    if (!el) return;
+    const b = el.closest && el.closest('.bubble');
+    if (!b) return;
+    const cur = activePointers.get('mouse');
+    if (cur && cur.current === b) return;
+    popBubble(b);
+    activePointers.set('mouse', {current: b});
+    trackRate();
+  });
+  window.addEventListener('mouseup', ()=>activePointers.delete('mouse'));
+
+  /* ============ Кнопки ============ */
+  $('newfilm').addEventListener('click', ()=>{
+    Pop.unlock(); Pop.click(1.1);
+    buildFilm();
+    toast('новая плёнка · текущая сброшена');
+  });
+
+  $('clearcur').addEventListener('click', ()=>{
+    Pop.unlock(); Pop.click(1.1);
+    buildFilm();
+    toast('плёнка обновлена');
+  });
+
+  // лопнуть всё — долгий тап
+  const popallBtn = $('popall');
+  let popallHoldTimer = null;
+  let popallArmed = false;
+
+  function armPopall(){
+    popallArmed = true;
+    popallBtn.classList.add('armed');
+    buzz(15);
+  }
+  function disarmPopall(){
+    popallArmed = false;
+    popallBtn.classList.remove('armed');
+  }
+  function startPopallHold(){
+    clearTimeout(popallHoldTimer);
+    popallHoldTimer = setTimeout(armPopall, 450);
+  }
+  function cancelPopallHold(){
+    clearTimeout(popallHoldTimer);
+  }
+  popallBtn.addEventListener('touchstart', startPopallHold, {passive:true});
+  popallBtn.addEventListener('touchend', cancelPopallHold);
+  popallBtn.addEventListener('touchcancel', ()=>{ cancelPopallHold(); disarmPopall(); });
+  popallBtn.addEventListener('mousedown', startPopallHold);
+  popallBtn.addEventListener('mouseup', cancelPopallHold);
+  popallBtn.addEventListener('mouseleave', ()=>{ cancelPopallHold(); disarmPopall(); });
+
+  popallBtn.addEventListener('click', ()=>{
+    if (!popallArmed){
+      toast('нажми и держи, чтобы лопнуть всё');
+      return;
+    }
+    disarmPopall();
+    Pop.unlock();
+    const bubbles = Array.from(gridEl.querySelectorAll('.bubble:not(.popped)'));
+    if (!bubbles.length){ toast('уже всё'); return; }
+    bubbles.sort((a,b)=>{
+      const ay = +a.dataset.y, by = +b.dataset.y;
+      if (ay !== by) return ay - by;
+      return (+a.dataset.x) - (+b.dataset.x);
+    });
+    const step = Math.max(12, Math.floor(900 / bubbles.length));
+    bubbles.forEach((b, i)=>{
+      setTimeout(()=>popBubble(b, {silent:true}), i*step);
+    });
+    Pop.cascade(bubbles.length);
+    buzz([10,30,10,30,10]);
+    toast('лопнуто ' + bubbles.length);
+  });
+
+  /* ============ Сброс общего счётчика ============ */
+  let totalHoldTimer = null;
+  let totalArmed = false;
+  function startTotalHold(){
+    clearTimeout(totalHoldTimer);
+    totalHoldTimer = setTimeout(()=>{
+      totalArmed = true;
+      totalEl.style.color = 'var(--accent)';
+      buzz(15);
+    }, 700);
+  }
+  function finishTotalHold(){
+    clearTimeout(totalHoldTimer);
+    if (totalArmed){
+      totalPopped = 0;
+      saveTotal();
+      totalEl.textContent = '0';
+      totalArmed = false;
+      totalEl.style.color = '';
+      toast('общий счётчик сброшен');
+      buzz([20,40,20]);
+    }
+  }
+  function cancelTotalHold(){
+    clearTimeout(totalHoldTimer);
+    if (totalArmed){
+      setTimeout(()=>{
+        totalArmed = false;
+        totalEl.style.color = '';
+      }, 400);
+    }
+  }
+  totalEl.addEventListener('touchstart', startTotalHold, {passive:true});
+  totalEl.addEventListener('touchend', finishTotalHold);
+  totalEl.addEventListener('touchcancel', cancelTotalHold);
+  totalEl.addEventListener('mousedown', startTotalHold);
+  totalEl.addEventListener('mouseup', finishTotalHold);
+  totalEl.addEventListener('mouseleave', cancelTotalHold);
+
+  /* ============ Звук кнопка ============ */
+  function renderSoundBtn(){
+    soundBtn.classList.toggle('off', !Pop.isEnabled());
+    soundBtn.textContent = Pop.isEnabled() ? '♪' : '×';
+  }
+  soundBtn.addEventListener('click', ()=>{ Pop.unlock(); Pop.toggle(); renderSoundBtn(); });
+
+  /* ============ Тосты ============ */
+  let toastT = null;
+  function toast(text){
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastT);
+    toastT = setTimeout(()=>toastEl.classList.remove('show'), 1500);
+  }
+  let achT = null;
+  function achToast(text){
+    achToastEl.textContent = text;
+    achToastEl.classList.add('show');
+    clearTimeout(achT);
+    achT = setTimeout(()=>achToastEl.classList.remove('show'), 2200);
+  }
+
+  /* ============ Достижения ============ */
+  function checkAch(){
+    ACHS.forEach(a=>{
+      if (achievements.includes(a.id)) return;
+      let ok = false;
+      try { ok = a.test({total: totalPopped, multiTouch: ctxState.multiTouch}, ctxState); } catch(e){}
+      if (ok){
+        achievements.push(a.id);
+        saveAchs();
+        achToast('· ' + a.name + ' ·');
+        buzz([10,30,10]);
+      }
+    });
+  }
+
+  /* ============ Меню ============ */
+  let titleHoldTimer = null;
+  let titleArmed = false;
+  function startTitleHold(){
+    clearTimeout(titleHoldTimer);
+    titleHoldTimer = setTimeout(()=>{
+      titleArmed = true;
+      openMenu();
+    }, 700);
+  }
+  function cancelTitleHold(){
+    clearTimeout(titleHoldTimer);
+    titleArmed = false;
+  }
+  $('title').addEventListener('touchstart', startTitleHold, {passive:true});
+  $('title').addEventListener('touchend', cancelTitleHold);
+  $('title').addEventListener('touchcancel', cancelTitleHold);
+  $('title').addEventListener('mousedown', startTitleHold);
+  $('title').addEventListener('mouseup', cancelTitleHold);
+
+  function openMenu(){
+    $('m-sound').textContent = Pop.isEnabled() ? 'вкл' : 'выкл';
+    $('m-total').textContent = totalPopped;
+    $('m-ach').textContent = achievements.length;
+    $('m-ach-sub').textContent = achievements.length + ' из ' + ACHS.length;
+    const listEl = $('m-ach-list');
+    listEl.innerHTML = '';
+    ACHS.forEach(a=>{
+      const done = achievements.includes(a.id);
+      const el = document.createElement('div');
+      el.className = 'item' + (done?' done':'');
+      el.innerHTML = `<span>${done?'✓ ':''}${a.name}</span><span>${done?'':'·'}</span>`;
+      listEl.appendChild(el);
+    });
+    menuEl.classList.add('show');
+    buzz(15);
+  }
+  function closeMenu(){
+    menuEl.classList.remove('show');
+  }
+  $('m-close').addEventListener('click', closeMenu);
+  menuEl.addEventListener('click', e=>{
+    if (e.target === menuEl) closeMenu();
+  });
+  $('m-reset-all').addEventListener('click', ()=>{
+    if (confirm('Сбросить всё: счётчики, достижения, плёнку?')){
+      totalPopped = 0;
+      currentPopped = 0;
+      achievements = [];
+      ctxState = {lastFilmComplete:false, lastFilmFast:false, multiTouch:false};
+      saveTotal(); saveAchs();
+      totalEl.textContent = '0';
+      buildFilm();
+      closeMenu();
+      toast('всё сброшено');
+    }
+  });
+
+  /* ============ Ресайз ============ */
+  function rebuildPreserving(){
+    const popped = new Set();
+    gridEl.querySelectorAll('.bubble.popped').forEach(b=>{
+      popped.add(b.dataset.x + ',' + b.dataset.y);
+    });
+    buildFilm(popped);
+  }
+  let resizeTimer = null;
+  function onResize(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(rebuildPreserving, 180);
+  }
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  if (tg && tg.onEvent){
+    try{ tg.onEvent('viewportChanged', onResize); }catch(e){}
+  }
+
+  /* ============ Автосохранение позиции плёнки ============ */
+  // сохраняем координаты лопнутых при уходе
+  function saveFilmState(){
+    const popped = [];
+    gridEl.querySelectorAll('.bubble.popped').forEach(b=>{
+      popped.push(b.dataset.x + ',' + b.dataset.y);
+    });
+    sessionStorage.setItem('pop_film', JSON.stringify({
+      popped,
+      savedAt: Date.now(),
+      cols: gridCols,
+      rows: gridRows
+    }));
+  }
+  function restoreFilmState(){
+    try{
+      const raw = sessionStorage.getItem('pop_film');
+      if (!raw) return false;
+      const s = JSON.parse(raw);
+      if (!s || !s.popped) return false;
+      // только если прошло меньше 30 минут
+      if (Date.now() - s.savedAt > 30*60*1000) return false;
+      const popped = new Set(s.popped);
+      buildFilm(popped);
+      return true;
+    }catch(e){ return false; }
+  }
+  window.addEventListener('beforeunload', saveFilmState);
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden) saveFilmState();
+  });
+
+  /* ============ Плавное дыхание ============ */
+  function toggleBreathe(on){
+    gridEl.classList.toggle('breathe', on);
+  }
+  let idleTimer = null;
+  function kickIdle(){
+    toggleBreathe(false);
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(()=>toggleBreathe(true), 5000);
+  }
+  document.addEventListener('touchstart', kickIdle, {passive:true});
+  document.addEventListener('mousedown', kickIdle);
+  kickIdle();
+
+  /* ============ Старт ============ */
+  renderSoundBtn();
+  totalEl.textContent = totalPopped;
+
+  requestAnimationFrame(()=>{
+    if (!restoreFilmState()){
+      buildFilm();
+    }
+    checkAch();
+    if (totalPopped === 0){
+      setTimeout(()=>toast('тапни по пузырьку · долгий тап на заголовке — настройки'), 900);
+    }
+  });
+})();
+</script>
+</body>
+</html>
